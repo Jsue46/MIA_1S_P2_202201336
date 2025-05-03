@@ -1,117 +1,133 @@
 package Environment
 
 import (
-	"Proyecto/Partitions"
-	"Proyecto/Utils"
-	"bytes"
-	"fmt"
-	"strings"
+    "Proyecto/Partitions"
+    "Proyecto/Utils"
+    "bytes"
+    "fmt"
+    "strings"
 )
 
 func Mount(path string, name string) string {
-	var output strings.Builder
-	output.WriteString("╔══════════════════════ INICIO MOUNT  ══════════════════════════╗\n")
-	file, err := Utils.AbrirArchivo(path)
-	if err != nil {
-		return fmt.Sprintf("  Error: No se pudo abrir el archivo en la ruta: %s\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝", path)
-	}
-	defer file.Close()
+    var output strings.Builder
+    output.WriteString("╔══════════════════════ INICIO MOUNT  ══════════════════════════╗\n")
+    file, err := Utils.AbrirArchivo(path)
+    if err != nil {
+        return fmt.Sprintf("  Error: No se pudo abrir el archivo en la ruta: %s\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝", path)
+    }
+    defer file.Close()
 
-	var TempMBR Partitions.MBR
-	if err := Utils.LeerArchivo(file, &TempMBR, 0); err != nil {
-		return "Error: No se pudo leer el MBR desde el archivo\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
-	}
+    var TempMBR Partitions.MBR
+    if err := Utils.LeerArchivo(file, &TempMBR, 0); err != nil {
+        return "Error: No se pudo leer el MBR desde el archivo\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
+    }
 
-	output.WriteString(fmt.Sprintf("  Buscando partición con nombre: '%s'\n", name))
+    output.WriteString(fmt.Sprintf("  Buscando partición con nombre: '%s'\n", name))
 
-	partitionFound := false
-	var partition Partitions.Partition
-	var partitionIndex int
+    partitionFound := false
+    var partition Partitions.Partition
+    var partitionIndex int
 
-	// Convertir el nombre a comparar a un arreglo de bytes de longitud fija
-	nameBytes := [16]byte{}
-	copy(nameBytes[:], []byte(name))
+    // Convertir el nombre a comparar a un arreglo de bytes de longitud fija
+    nameBytes := [16]byte{}
+    copy(nameBytes[:], []byte(name))
 
-	for i := 0; i < 4; i++ {
-		if TempMBR.MbrPartitions[i].PartType[0] == 'p' && bytes.Equal(TempMBR.MbrPartitions[i].PartName[:], nameBytes[:]) {
-			partition = TempMBR.MbrPartitions[i]
-			partitionIndex = i
-			partitionFound = true
-			break
-		}
-	}
+    for i := 0; i < 4; i++ {
+        if TempMBR.MbrPartitions[i].PartType[0] == 'p' && bytes.Equal(TempMBR.MbrPartitions[i].PartName[:], nameBytes[:]) {
+            partition = TempMBR.MbrPartitions[i]
+            partitionIndex = i
+            partitionFound = true
+            break
+        }
+    }
 
-	if !partitionFound {
-		return "Error: Partición no encontrada o no es una partición primaria\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
-	}
+    if !partitionFound {
+        return "Error: Partición no encontrada o no es una partición primaria\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
+    }
 
-	// Verificar si la partición ya está montada
-	if partition.PartStatus[0] == '1' {
-		return "Error: La partición ya está montada\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
-	}
+    // Verificar si la partición ya está montada
+    if partition.PartStatus[0] == '1' {
+        return "Error: La partición ya está montada\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
+    }
 
-	output.WriteString(fmt.Sprintf("  Partición encontrada: '%s' en posición %d\n", strings.TrimSpace(string(partition.PartName[:])), partitionIndex+1))
+    output.WriteString(fmt.Sprintf("  Partición encontrada: '%s' en posición %d\n", strings.TrimSpace(string(partition.PartName[:])), partitionIndex+1))
 
-	// Generar el ID de la partición utilizando la función `generateDiskID`
-	diskID := generateDiskID(path)
-	mountedPartitionsInDisk := mountedPartitions[diskID]
-	var letter byte
+    // Generar el ID de la partición utilizando la función generateDiskID
+    diskID := generateDiskID(path)
+    mountedPartitionsInDisk := mountedPartitions[diskID]
+    var letter byte
 
-	if len(mountedPartitionsInDisk) == 0 {
-		if len(mountedPartitions) == 0 {
-			letter = 'A'
-		} else {
-			lastDiskID := getLastDiskID()
-			lastLetter := mountedPartitions[lastDiskID][0].MountID[len(mountedPartitions[lastDiskID][0].MountID)-1]
-			letter = lastLetter + 1
-		}
-	} else {
-		letter = mountedPartitionsInDisk[0].MountID[len(mountedPartitionsInDisk[0].MountID)-1]
-	}
+    if len(mountedPartitionsInDisk) == 0 {
+        if len(mountedPartitions) == 0 {
+            letter = 'A'
+        } else {
+            lastDiskID := getLastDiskID()
+            lastLetter := mountedPartitions[lastDiskID][0].MountID[len(mountedPartitions[lastDiskID][0].MountID)-1]
+            letter = lastLetter + 1
+        }
+    } else {
+        letter = mountedPartitionsInDisk[0].MountID[len(mountedPartitionsInDisk[0].MountID)-1]
+    }
 
-	// Crear el ID de la partición utilizando el último par de dígitos de un carnet
-	carnet := "202201336"
-	lastTwoDigits := carnet[len(carnet)-2:]
-	partitionID := fmt.Sprintf("%s%d%c", lastTwoDigits, partitionIndex+1, letter)
+    // Crear el ID de la partición utilizando el último par de dígitos de un carnet
+    carnet := "202201336"
+    lastTwoDigits := carnet[len(carnet)-2:]
+    partitionID := fmt.Sprintf("%s%d%c", lastTwoDigits, partitionIndex+1, letter)
 
-	partition.PartStatus[0] = '1'
-	copy(partition.PartID[:], partitionID)
-	TempMBR.MbrPartitions[partitionIndex] = partition
+    partition.PartStatus[0] = '1'
+    copy(partition.PartID[:], partitionID)
+    TempMBR.MbrPartitions[partitionIndex] = partition
 
-	// Almacenar la posición inicial de la partición
-	mountedPartitions[diskID] = append(mountedPartitions[diskID], MountedPartition{
-		MountPath:   path,
-		MountName:   name,
-		MountID:     partitionID,
-		MountStatus: '1',
-		MountStart:  partition.PartStart,
-	})
+    // Almacenar la posición inicial de la partición
+    mountedPartitions[diskID] = append(mountedPartitions[diskID], MountedPartition{
+        MountPath:   path,
+        MountName:   name,
+        MountID:     partitionID,
+        MountStatus: '1',
+        MountStart:  partition.PartStart,
+    })
 
-	// Escribir el MBR actualizado en el archivo
-	if err := Utils.EscribirArchivo(file, TempMBR, 0); err != nil {
-		return "Error: No se pudo sobrescribir el MBR en el archivo\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
-	}
+    // Escribir el MBR actualizado en el archivo
+    if err := Utils.EscribirArchivo(file, TempMBR, 0); err != nil {
+        return "Error: No se pudo sobrescribir el MBR en el archivo\n╚══════════════════════   FIN MOUNT   ═════════════════════════╝"
+    }
 
-	// Imprimir el mensaje confirmando que la partición ha sido montada, junto con su ID.
-	output.WriteString(fmt.Sprintf("  Partición montada con ID: %s\n", partitionID))
+    // Imprimir el mensaje confirmando que la partición ha sido montada, junto con su ID.
+    output.WriteString(fmt.Sprintf("  Partición montada con ID: %s\n", partitionID))
 
-	output.WriteString("\n  MBR actualizado:\n")
-	output.WriteString(Partitions.ImprimirMBR(TempMBR))
-	output.WriteString("\n\n  Particiones Montadas:\n")
-	output.WriteString(ImprimirMountedPartitions())
+    output.WriteString("\n  MBR actualizado:\n")
+    output.WriteString(Partitions.ImprimirMBR(TempMBR))
+    output.WriteString("\n\n  Particiones Montadas:\n")
+    output.WriteString(ImprimirMountedPartitions())
 
-	output.WriteString("╚══════════════════════   FIN MOUNT   ═════════════════════════╝\n")
-	return output.String()
+    output.WriteString("╚══════════════════════   FIN MOUNT   ═════════════════════════╝\n")
+    return output.String()
 }
 
 func getLastDiskID() string {
-	var lastDiskID string
-	for diskID := range mountedPartitions {
-		lastDiskID = diskID
-	}
-	return lastDiskID
+    var lastDiskID string
+    for diskID := range mountedPartitions {
+        lastDiskID = diskID
+    }
+    return lastDiskID
 }
 
 func generateDiskID(path string) string {
-	return strings.ToLower(path)
+    return strings.ToLower(path)
+}
+/ fn_mount procesa el comando mount.
+func fn_mount(parametros string) string {
+    var output strings.Builder
+    paramMap := extraerParametros(parametros)
+
+    path := strings.ToLower(paramMap["path"])
+    name := strings.ToLower(paramMap["name"])
+
+    if path == "" || name == "" {
+        return "Error: Path y Name son obligatorios"
+    }
+
+    // Llamar a la función Mount con los parámetros procesados
+    output.WriteString(Environment.Mount(path, name))
+    return output.String()
 }
